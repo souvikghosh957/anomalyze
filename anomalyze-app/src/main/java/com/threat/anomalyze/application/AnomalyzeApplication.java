@@ -1,4 +1,4 @@
-package com.threat.anomalyze;
+package com.threat.anomalyze.application;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

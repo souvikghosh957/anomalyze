@@ -11,8 +11,15 @@
 	<groupId>com.threat.anomalyze</groupId>
 	<artifactId>anomalyze</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
+	<packaging>pom</packaging>
 	<name>anomalyze</name>
 	<description>AI project for automatic threat detection</description>
+	<modules>
+		<module>model-training-app</module>
+		<module>anomalyze-app</module>
+		<module>commons</module>
+	</modules>
+
 	<url/>
 	<licenses>
 		<license/>
@@ -39,7 +46,17 @@
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-ollama-spring-boot-starter</artifactId>
 		</dependency>
-
+		<!-- https://mvnrepository.com/artifact/com.github.haifengl/smile-core -->
+		<dependency>
+			<groupId>com.github.haifengl</groupId>
+			<artifactId>smile-core</artifactId>
+			<version>4.3.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.haifengl</groupId>
+			<artifactId>smile-plot</artifactId>
+			<version>4.3.0</version>
+		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -77,19 +94,6 @@
 					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-				<configuration>
-					<excludes>
-						<exclude>
-							<groupId>org.projectlombok</groupId>
-							<artifactId>lombok</artifactId>
-						</exclude>
-					</excludes>
-				</configuration>
-			</plugin>
 		</plugins>
 	</build>
-
 </project>
