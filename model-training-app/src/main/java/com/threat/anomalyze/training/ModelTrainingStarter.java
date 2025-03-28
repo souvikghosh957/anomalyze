@@ -1,6 +1,6 @@
 package com.threat.anomalyze.training;
 
-import com.threat.anomalyze.training.service.AnomalyzeTrainingService;
+import com.threat.anomalyze.training.service.ZeroDayTrainingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -15,15 +15,13 @@ public class ModelTrainingStarter implements CommandLineRunner {
     private ApplicationContext context;
 
     @Autowired
-    AnomalyzeTrainingService anomalyzeTrainingService;
+    ZeroDayTrainingService zeroDayTrainingService;
 
 
     @Override
     public void run(String... args) throws Exception {
         try {
-            anomalyzeTrainingService.preprocessData();
-            anomalyzeTrainingService.trainAnomalyDetectionModel();
-            anomalyzeTrainingService.evaluateModel();
+            zeroDayTrainingService.startTraining();
 
         } catch (Exception e) {
             // TODO Auto-generated catch block
