@@ -1,4 +1,4 @@
-package com.threat.anomalyze.training.service;
+package com.threat.anomalyze.training.helper;
 
 import com.threat.anomalyze.commons.features.FeatureConfig;
 import lombok.extern.slf4j.Slf4j;

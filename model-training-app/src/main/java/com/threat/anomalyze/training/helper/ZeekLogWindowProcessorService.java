@@ -1,4 +1,4 @@
-package com.threat.anomalyze.training.service;
+package com.threat.anomalyze.training.helper;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.PreDestroy;
@@ -7,33 +7,43 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-
 @Service
 @Slf4j
 public class ZeekLogWindowProcessorService {
-    private final static long WINDOW_SIZE_MS = TimeUnit.MINUTES.toMillis(1);
+    private static final long WINDOW_SIZE_MS = TimeUnit.MINUTES.toMillis(1);
     private final ConcurrentMap<String, Deque<WindowBucket>> connectionWindows = new ConcurrentHashMap<>();
 
     @Getter
-    private final BlockingQueue<Map<String, List<JsonNode>>> processingQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<WindowData> processingQueue = new LinkedBlockingQueue<>();
+
+    public static class WindowData {
+        public final String ip;
+        public final long windowStart;
+        public final Map<String, List<JsonNode>> logEntriesByType;
+
+        public WindowData(String ip, long windowStart, Map<String, List<JsonNode>> logEntriesByType) {
+            this.ip = ip;
+            this.windowStart = windowStart;
+            this.logEntriesByType = logEntriesByType;
+        }
+    }
 
     private static class WindowBucket {
         final long windowStart;
         final long windowSize;
-        final List<JsonNode> entries = new CopyOnWriteArrayList<>();
+        final Map<String, List<JsonNode>> logEntriesByType = new ConcurrentHashMap<>();
 
         WindowBucket(long timestamp, long windowSize) {
             this.windowSize = windowSize;
@@ -45,16 +55,16 @@ public class ZeekLogWindowProcessorService {
         }
     }
 
-    public void processLogEntries(List<JsonNode> jsonNodes) {
-        log.info("Processing batch of {} log entries", jsonNodes.size());
-        jsonNodes.forEach(this::processSingleEntry);
+    public void processLogEntries(String logType, List<JsonNode> jsonNodes) {
+        log.info("Processing batch of {} log entries for log type {}", jsonNodes.size(), logType);
+        jsonNodes.forEach(entry -> processSingleEntry(logType, entry));
     }
 
-    private void processSingleEntry(JsonNode entry) {
+    private void processSingleEntry(String logType, JsonNode entry) {
         try {
             String sourceIp = entry.get("id.orig_h").asText();
             long entryTime = (long) (entry.get("ts").asDouble() * 1000);
-            log.debug("Processing entry from {} at {}", sourceIp, entryTime);
+            log.debug("Processing entry from {} at {} for log type {}", sourceIp, entryTime, logType);
 
             connectionWindows.compute(sourceIp, (ip, buckets) -> {
                 if (buckets == null) {
@@ -73,9 +83,9 @@ public class ZeekLogWindowProcessorService {
                     buckets.add(current);
                 }
 
-                current.entries.add(entry);
-                log.debug("Added entry to window starting at {} for IP: {}",
-                        current.windowStart, ip);
+                current.logEntriesByType.computeIfAbsent(logType, k -> new CopyOnWriteArrayList<>()).add(entry);
+                log.debug("Added entry to window starting at {} for IP: {} and log type: {}",
+                        current.windowStart, ip, logType);
                 return buckets;
             });
         } catch (Exception e) {
@@ -94,10 +104,11 @@ public class ZeekLogWindowProcessorService {
             int initialSize = buckets.size();
             buckets.removeIf(bucket -> {
                 boolean shouldRemove = bucket.windowStart + bucket.windowSize < cutoff
-                        && !bucket.entries.isEmpty();
+                        && !bucket.logEntriesByType.isEmpty();
                 if (shouldRemove) {
-                    log.warn("Removing stale window for IP: {} (start: {}, entries: {})",
-                            ip, bucket.windowStart, bucket.entries.size());
+                    log.warn("Removing stale window for IP: {} (start: {}, log types: {})",
+                            ip, bucket.windowStart, bucket.logEntriesByType.keySet());
+                    submitWindow(ip, bucket);
                     removedCount[0]++;
                 }
                 return shouldRemove;
@@ -107,6 +118,15 @@ public class ZeekLogWindowProcessorService {
         });
 
         log.info("Completed stale window cleanup. Removed {} total buckets", removedCount[0]);
+    }
+
+    public void flushAllWindows() {
+        log.info("Flushing all current windows");
+        connectionWindows.forEach((ip, buckets) -> {
+            buckets.forEach(bucket -> submitWindow(ip, bucket));
+            buckets.clear();
+        });
+        log.info("All windows flushed. Queue size: {}", processingQueue.size());
     }
 
     @PreDestroy
@@ -125,13 +145,14 @@ public class ZeekLogWindowProcessorService {
     }
 
     private void submitWindow(String ip, WindowBucket bucket) {
-        Map<String, List<JsonNode>> windowData = new HashMap<>();
-        List<JsonNode> entries = Collections.unmodifiableList(bucket.entries);
-        windowData.put(ip, entries);
-
+        Map<String, List<JsonNode>> logEntriesCopy = new HashMap<>();
+        bucket.logEntriesByType.forEach((logType, entries) -> {
+            logEntriesCopy.put(logType, List.copyOf(entries));
+        });
+        WindowData windowData = new WindowData(ip, bucket.windowStart, logEntriesCopy);
         if (processingQueue.offer(windowData)) {
-            log.info("Submitted window for IP: {} with {} entries (start: {})",
-                    ip, entries.size(), bucket.windowStart);
+            log.info("Submitted window for IP: {} with log types: {} (start: {})",
+                    ip, logEntriesCopy.keySet(), bucket.windowStart);
         } else {
             log.error("Failed to submit window for IP: {} - processing queue full!", ip);
         }

@@ -1,6 +1,7 @@
 package com.threat.anomalyze.training.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.threat.anomalyze.commons.features.FeatureAggregator;
 import com.threat.anomalyze.commons.parser.LogParser;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

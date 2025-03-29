@@ -1,4 +1,4 @@
-package com.threat.anomalyze.training;
+package com.threat.anomalyze.training.starter;
 
 import com.threat.anomalyze.training.service.ZeroDayTrainingService;
 import lombok.extern.slf4j.Slf4j;
