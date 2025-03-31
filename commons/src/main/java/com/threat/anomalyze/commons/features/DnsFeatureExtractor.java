@@ -36,12 +36,12 @@ public class DnsFeatureExtractor extends BaseFeatureExtractor implements IFeatur
 
         // Existing Feature: Unique queried domains
         Set<String> uniqueDomains = dnsEntries.stream()
-                .map(e -> e.get("query").asText(""))
+                .map(e -> e.path("query").asText(""))
                 .collect(Collectors.toSet());
 
         // Existing Feature: Query type entropy
         Frequency qtypeFreq = new Frequency();
-        dnsEntries.forEach(e -> qtypeFreq.addValue(e.get("qtype_name").asText("")));
+        dnsEntries.forEach(e -> qtypeFreq.addValue(e.path("qtype_name").asText("")));
         double qtypeEntropy = EntropyUtils.calculateEntropy(qtypeFreq);
 
         // New Feature: Average query-response time
@@ -66,21 +66,43 @@ public class DnsFeatureExtractor extends BaseFeatureExtractor implements IFeatur
      * Calculates the average time between DNS queries and their responses.
      */
     private double calculateQueryResponseTimeAvg(List<JsonNode> dnsEntries) {
-        List<Double> timeDiffs = new ArrayList<>();
-        Map<String, List<JsonNode>> groupedById = dnsEntries.stream()
-                .collect(Collectors.groupingBy(e -> e.get("trans_id").asText()));
-        for (List<JsonNode> group : groupedById.values()) {
-            if (group.size() == 2) { // Assuming query and response pair
-                JsonNode query = group.get(0).get("QR").asText().equals("Q") ? group.get(0) : group.get(1);
-                JsonNode resp = group.get(0).get("QR").asText().equals("R") ? group.get(0) : group.get(1);
-                double queryTime = query.get("ts").asDouble();
-                double respTime = resp.get("ts").asDouble();
-                if (respTime > queryTime) {
-                    timeDiffs.add(respTime - queryTime);
+        // Group by uid and trans_id
+        Map<String, Map<String, List<JsonNode>>> groupedByUidAndTransId = dnsEntries.stream()
+                .collect(Collectors.groupingBy(
+                        e -> e.get("uid").asText(),
+                        Collectors.groupingBy(e -> e.get("trans_id").asText())
+                ));
+
+        List<Double> timeDifferences = new ArrayList<>();
+
+        for (Map<String, List<JsonNode>> uidGroup : groupedByUidAndTransId.values()) {
+            for (List<JsonNode> transGroup : uidGroup.values()) {
+                if (transGroup.size() >= 2) { // Expect at least query and response
+                    JsonNode query = transGroup.stream()
+                            .filter(e -> !e.has("answers") || e.get("answers").isEmpty())
+                            .findFirst()
+                            .orElse(null);
+                    JsonNode response = transGroup.stream()
+                            .filter(e -> e.has("answers") && !e.get("answers").isEmpty())
+                            .findFirst()
+                            .orElse(null);
+                    if (query != null && response != null) {
+                        double queryTs = query.get("ts").asDouble();
+                        double responseTs = response.get("ts").asDouble();
+                        double diff = responseTs - queryTs;
+                        if (diff > 0) { // Ensure response is after query
+                            timeDifferences.add(diff);
+                        }
+                    }
                 }
             }
         }
-        return timeDiffs.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+
+        return timeDifferences.isEmpty() ? 0.0 :
+                timeDifferences.stream()
+                        .mapToDouble(Double::doubleValue)
+                        .average()
+                        .orElse(0.0);
     }
 
     /**

@@ -31,19 +31,19 @@ public class SslFeatureExtractor extends BaseFeatureExtractor implements IFeatur
 
         // Outdated SSL versions
         long outdatedSslCount = sslEntries.stream()
-                .map(e -> e.get("version").asText(""))
+                .map(e -> e.path("version").asText(""))
                 .filter(version -> "SSLv2".equals(version) || "SSLv3".equals(version))
                 .count();
 
         // Weak ciphers
         long weakCipherCount = sslEntries.stream()
-                .map(e -> e.get("cipher").asText(""))
+                .map(e -> e.path("cipher").asText(""))
                 .filter(cipher -> cipher.contains("RC4") || cipher.contains("DES"))
                 .count();
 
         // Cipher suite entropy
         Frequency cipherFreq = new Frequency();
-        sslEntries.forEach(e -> cipherFreq.addValue(e.get("cipher").asText("")));
+        sslEntries.forEach(e -> cipherFreq.addValue(e.path("cipher").asText("")));
         double cipherEntropy = EntropyUtils.calculateEntropy(cipherFreq);
 
         // JA3 similarity score

@@ -31,26 +31,26 @@ public class HttpFeatureExtractor extends BaseFeatureExtractor implements IFeatu
 
         // Rare HTTP methods
         long rareMethodCount = httpEntries.stream()
-                .map(e -> e.get("method").asText(""))
+                .map(e -> e.path("method").asText(""))
                 .filter(method -> !COMMON_METHODS.contains(method))
                 .count();
 
         // URI anomalies
         long uriAnomalyCount = httpEntries.stream()
-                .map(e -> e.get("uri").asText(""))
+                .map(e -> e.path("uri").asText(""))
                 .filter(uri -> uri.contains("..") || uri.contains("%00"))
                 .count();
 
         // Status code ratio (4xx, 5xx errors)
         long errorCodeCount = httpEntries.stream()
-                .map(e -> e.get("status_code").asInt(0))
+                .map(e -> e.path("status_code").asInt(0))
                 .filter(code -> code >= 400 && code < 600)
                 .count();
         double statusCodeRatio = httpEntries.isEmpty() ? 0.0 : (double) errorCodeCount / httpEntries.size();
 
         // Method frequency skew
         Frequency methodFreq = new Frequency();
-        httpEntries.forEach(e -> methodFreq.addValue(e.get("method").asText("")));
+        httpEntries.forEach(e -> methodFreq.addValue(e.path("method").asText("")));
         double[] methodCounts = new double[(int) methodFreq.getUniqueCount()];
         Iterator<Comparable<?>> iterator = methodFreq.valuesIterator();
         for (int i = 0; iterator.hasNext(); i++) {

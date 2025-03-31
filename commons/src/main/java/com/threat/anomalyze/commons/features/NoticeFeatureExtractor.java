@@ -23,10 +23,8 @@ public class NoticeFeatureExtractor extends BaseFeatureExtractor implements IFea
             return;
         }
 
-        // Notice anomalies
-        long anomalyCount = noticeEntries.stream()
-                .filter(e -> "Alert".equals(e.get("notice_type").asText("")))
-                .count();
+        // Notice anomalies: count all notice entries
+        long anomalyCount = noticeEntries.size();
 
         Map<String, Double> features = Map.of(
                 FeatureConfig.NOTICE_ANOMALIES, (double) anomalyCount

@@ -37,9 +37,9 @@ public class ConnFeatureExtractor extends BaseFeatureExtractor implements IFeatu
 
         // Feature: Average connection duration
         double totalDuration = connEntries.stream()
-                .mapToDouble(e -> e.get("duration").asDouble(0))
+                .mapToDouble(e -> e.path("duration").asDouble(0.0))
                 .sum();
-        double connDurationAvg = connFreq > 0 ? totalDuration / connFreq : 0.0;
+        double connDurationAvg = totalDuration / connFreq;
 
         // Feature: Port entropy
         Frequency portFreq = new Frequency();
@@ -54,8 +54,8 @@ public class ConnFeatureExtractor extends BaseFeatureExtractor implements IFeatu
         // Feature: Bytes in/out ratio
         double bytesInOutRatio = connEntries.stream()
                 .mapToDouble(e -> {
-                    double origBytes = e.get("orig_bytes").asDouble(0);
-                    double respBytes = e.get("resp_bytes").asDouble(0);
+                    double origBytes = e.path("orig_bytes").asDouble(0.0);
+                    double respBytes = e.path("resp_bytes").asDouble(0.0);
                     return origBytes / (respBytes + 1);
                 })
                 .average()

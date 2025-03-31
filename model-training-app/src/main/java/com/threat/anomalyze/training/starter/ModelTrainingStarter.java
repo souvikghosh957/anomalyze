@@ -24,7 +24,7 @@ public class ModelTrainingStarter implements CommandLineRunner {
             zeroDayTrainingService.startTraining();
 
         } catch (Exception e) {
-            // TODO Auto-generated catch block
+            log.error("Failed to start training", e);
         } finally {
             log.info("Exiting the application...");
             SpringApplication.exit(context, () -> 0);
