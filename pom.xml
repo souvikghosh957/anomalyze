@@ -31,11 +31,13 @@
 
 	<dependencyManagement>
 		<dependencies>
+			<!-- Commons Module -->
 			<dependency>
 				<groupId>com.threat.anomalyze</groupId>
 				<artifactId>commons</artifactId>
 				<version>0.0.1-SNAPSHOT</version>
 			</dependency>
+			<!-- Spring AI BOM -->
 			<dependency>
 				<groupId>org.springframework.ai</groupId>
 				<artifactId>spring-ai-bom</artifactId>
@@ -47,17 +49,13 @@
 	</dependencyManagement>
 
 	<dependencies>
-		<!-- Spring Boot -->
+		<!-- Spring Boot Dependencies -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
 		<!-- AI & ML Dependencies -->
-		<dependency>
-			<groupId>org.springframework.ai</groupId>
-			<artifactId>spring-ai-ollama-spring-boot-starter</artifactId>
-		</dependency>
 		<dependency>
 			<groupId>com.github.haifengl</groupId>
 			<artifactId>smile-core</artifactId>
@@ -69,22 +67,26 @@
 			<version>4.3.0</version>
 		</dependency>
 
-		<!-- Lombok -->
+		<!-- Lombok for reducing boilerplate code -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 			<scope>provided</scope>
 		</dependency>
 
-		<!-- Analytics -->
+		<!-- Analytics Dependencies -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-math3</artifactId>
 			<version>3.6.1</version>
 		</dependency>
+		<dependency>
+			<groupId>org.jfree</groupId>
+			<artifactId>jfreechart</artifactId>
+			<version>1.5.5</version>
+		</dependency>
 
-
-		<!-- Testing -->
+		<!-- Testing Dependencies -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
