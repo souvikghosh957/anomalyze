@@ -18,6 +18,7 @@ import smile.io.Read;
 import smile.io.Write;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -79,14 +80,17 @@ public class ZeroDayTrainingService implements ModelTrainingService {
     private void preprocessData() throws TrainingException {
         log.info("Starting data preprocessing...");
         try {
-            List<String> logTypes = List.of("conn", "http", "dns", "ssl"); //notice has been skipped
+            List<String> logTypes = List.of("conn", "http", "dns", "ssl", "notice");
             for (String logType : logTypes) {
-                String logFilePath = zeekLogPath + "/" + logType + ".log";
-                List<JsonNode> logs = logParser.parseLogFile(logFilePath);
-                log.info("Parsed {} {} log entries.", logs.size(), logType);
-                zeekLogWindowProcessorService.processLogEntries(logType, logs);
+                String logFilePath = Paths.get(zeekLogPath, logType + ".log").toString();
+                if (Files.exists(Paths.get(logFilePath))) {
+                    List<JsonNode> logs = logParser.parseLogFile(logFilePath);
+                    log.info("Parsed {} {} log entries.", logs.size(), logType);
+                    zeekLogWindowProcessorService.processLogEntries(logType, logs);
+                } else {
+                    log.info("Log file not found: {}. Skipping.", logFilePath);
+                }
             }
-
             zeekLogWindowProcessorService.flushAllWindows();
             BlockingQueue<ZeekLogWindowProcessorService.WindowData> processingQueue =
                     zeekLogWindowProcessorService.getProcessingQueue();
@@ -140,7 +144,7 @@ public class ZeroDayTrainingService implements ModelTrainingService {
 
             // Train Isolation Forest model
             IsolationForest.Options options = new IsolationForest.Options(
-                    numberOfTrees, maxTreeDepth, subSamplingRate,  extensionLevel);
+                    numberOfTrees, maxTreeDepth, subSamplingRate, extensionLevel);
             IsolationForest model = IsolationForest.fit(modifiedDf.toArray(), options);
             log.info("Isolation Forest model trained successfully");
 

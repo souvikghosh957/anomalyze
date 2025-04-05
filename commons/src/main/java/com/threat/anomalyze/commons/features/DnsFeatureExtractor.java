@@ -111,7 +111,7 @@ public class DnsFeatureExtractor extends BaseFeatureExtractor implements IFeatur
     private int calculateDomainAgeAnomaly(List<JsonNode> dnsEntries) {
         int anomalies = 0;
         for (JsonNode entry : dnsEntries) {
-            String domain = entry.get("query").asText();
+            String domain = entry.path("query").asText();
             LocalDateTime creationDate = getWhoisCreationDate(domain);
             long ageDays = ChronoUnit.DAYS.between(creationDate, LocalDateTime.now());
             if (ageDays < 30) {
