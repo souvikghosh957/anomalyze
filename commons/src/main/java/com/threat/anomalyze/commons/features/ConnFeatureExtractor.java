@@ -89,5 +89,4 @@ public class ConnFeatureExtractor extends BaseFeatureExtractor implements IFeatu
         submitFeatures(ip, windowStart, features);
     }
 
-    // Remove the original process method since it's replaced by extractFeatures
 }
