@@ -32,4 +32,8 @@ public class FeatureAggregator {
     public Map<String, Map<Long, Map<String, Double>>> getFeatureStore() {
         return Collections.unmodifiableMap(featureStore);
     }
+
+    public void clear() {
+        featureStore.clear();
+    }
 }
