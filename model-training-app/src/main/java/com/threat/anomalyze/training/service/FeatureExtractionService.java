@@ -81,7 +81,7 @@ public class FeatureExtractionService {
     }
 
     private void processLogType(String logPath, String logType) {
-        String logFilePath = Paths.get(logPath, logType + ".log").toString();
+        String logFilePath = Paths.get(logPath, logType+ "_sorted" + ".log").toString();
         if (Files.exists(Paths.get(logFilePath))) {
             try {
                 List<JsonNode> logs = logParser.parseLogFile(logFilePath);
@@ -107,21 +107,6 @@ public class FeatureExtractionService {
         }
         return processedWindows;
     }
-
-//    private void extractFeaturesFromWindows(List<ZeekLogWindowProcessorService.WindowData> processedWindows) {
-//        for (ZeekLogWindowProcessorService.WindowData windowData : processedWindows) {
-//            String ip = windowData.ip;
-//            long windowStart = windowData.windowStart;
-//            Map<String, List<JsonNode>> logEntriesByType = windowData.logEntriesByType;
-//            for (IFeatureExtractor extractor : featureExtractors) {
-//                try {
-//                    extractor.extractFeatures(ip, windowStart, logEntriesByType);
-//                } catch (Exception e) {
-//                    log.error("Failed to extract features for IP: {} in window: {}", ip, windowStart, e);
-//                }
-//            }
-//        }
-//    }
 
     private void extractFeaturesFromWindows(List<ZeekLogWindowProcessorService.WindowData> processedWindows) {
         ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());

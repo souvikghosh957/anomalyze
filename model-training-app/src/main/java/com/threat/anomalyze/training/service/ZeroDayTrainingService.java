@@ -172,11 +172,11 @@ public class ZeroDayTrainingService implements ModelTrainingService {
             }
 
             // Step 7: Export results to CSV
-            String scoresCsvPath = "test_scores.csv";
+            String scoresCsvPath = "test_scores_input.csv";
             List<String> headers = List.of("ip", "timestamp", "anomaly_score");
             csvExportService.exportToCsv(Paths.get(scoresCsvPath), scoresList, headers);
             log.info("Test scores saved to {}", scoresCsvPath);
-            ScatterPlotUtils.saveScatterPlot(featuresDf, "zeroday_scatter_plot_Wednesday.png");
+            ScatterPlotUtils.saveScatterPlot(featuresDf, "zeroday_scatter_plot_input.png");
         } catch (IOException e) {
             log.error("Failed to process test logs or export data: {}", e.getMessage(), e);
             throw new TrainingException("Error during model evaluation", e);

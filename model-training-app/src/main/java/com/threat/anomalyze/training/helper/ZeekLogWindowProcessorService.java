@@ -84,7 +84,8 @@ public class ZeekLogWindowProcessorService {
 
     /**
      * Processes a batch of log entries for a given log type by delegating to processSingleEntry.
-     * @param logType The type of log (e.g., "conn", "dns")
+     *
+     * @param logType   The type of log (e.g., "conn", "dns")
      * @param jsonNodes List of log entries in JSON format
      */
     public void processLogEntries(String logType, List<JsonNode> jsonNodes) {
@@ -99,8 +100,9 @@ public class ZeekLogWindowProcessorService {
 
     /**
      * Processes a single log entry, placing it into the appropriate time window bucket for its source IP.
+     *
      * @param logType The type of log
-     * @param entry The log entry as a JSON node
+     * @param entry   The log entry as a JSON node
      */
     private void processSingleEntry(String logType, JsonNode entry) {
         if (isShuttingDown) {
@@ -126,13 +128,6 @@ public class ZeekLogWindowProcessorService {
 
                 // Align entry time to the start of its window
                 long windowStart = entryTime - (entryTime % windowSizeMs);
-
-                // Skip entries older than the earliest tracked window
-                if (!buckets.isEmpty() && windowStart < buckets.get(0).windowStart) {
-                    log.warn("Ignoring entry for IP {} with timestamp {} (before earliest window {})",
-                            ip, entryTime, buckets.get(0).windowStart);
-                    return buckets;
-                }
 
                 // Locate or create the bucket for this window
                 int index = findBucketIndex(buckets, windowStart);
@@ -171,6 +166,7 @@ public class ZeekLogWindowProcessorService {
 
     /**
      * Performs a binary search to find the bucket matching windowStart or its insertion point.
+     *
      * @return Index if found, or negative insertion point if not found
      */
     private int findBucketIndex(List<WindowBucket> buckets, long windowStart) {
