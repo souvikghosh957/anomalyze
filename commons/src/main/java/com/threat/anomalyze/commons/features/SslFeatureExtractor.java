@@ -14,7 +14,7 @@ import java.util.Set;
 @Slf4j
 public class SslFeatureExtractor extends BaseFeatureExtractor implements IFeatureExtractor {
 
-    private final Set<String> knownJa3Db; // Injected known JA3 hashes
+    private final Set<String> knownJa3Db;
 
     public SslFeatureExtractor(FeatureAggregator aggregator, Set<String> knownJa3Db) {
         super(aggregator, FeatureConfig.WINDOW_SIZE_MS);
@@ -35,10 +35,11 @@ public class SslFeatureExtractor extends BaseFeatureExtractor implements IFeatur
                 .filter(version -> "SSLv2".equals(version) || "SSLv3".equals(version))
                 .count();
 
-        // Weak ciphers
+        // Weak ciphers (expanded)
         long weakCipherCount = sslEntries.stream()
                 .map(e -> e.path("cipher").asText(""))
-                .filter(cipher -> cipher.contains("RC4") || cipher.contains("DES"))
+                .filter(cipher -> cipher.contains("RC4") || cipher.contains("DES") ||
+                        cipher.contains("3DES") || cipher.contains("MD5"))
                 .count();
 
         // Cipher suite entropy
@@ -46,25 +47,49 @@ public class SslFeatureExtractor extends BaseFeatureExtractor implements IFeatur
         sslEntries.forEach(e -> cipherFreq.addValue(e.path("cipher").asText("")));
         double cipherEntropy = EntropyUtils.calculateEntropy(cipherFreq);
 
-        // JA3 similarity score
-        int ja3Matches = 0;
-        for (JsonNode entry : sslEntries) {
-            String ja3 = generateJa3Hash(entry);
-            if (knownJa3Db.contains(ja3)) ja3Matches++;
-        }
-        double ja3Similarity = sslEntries.isEmpty() ? 0.0 : (double) ja3Matches / sslEntries.size();
+        // JA3 entropy (replacing similarity)
+        Frequency ja3Freq = new Frequency();
+        sslEntries.forEach(e -> {
+            String ja3 = generateJa3Hash(e);
+            if (!ja3.isEmpty()) ja3Freq.addValue(ja3);
+        });
+        double ja3Entropy = EntropyUtils.calculateEntropy(ja3Freq);
 
+        // Self-signed certificate count
+        long selfSignedCertCount = sslEntries.stream()
+                .filter(e -> {
+                    String issuer = e.path("issuer").asText("");
+                    String subject = e.path("subject").asText("");
+                    return !issuer.isEmpty() && issuer.equals(subject);
+                })
+                .count();
+
+        // Handshake failure rate
+        long handshakeFailureCount = sslEntries.stream()
+                .filter(e -> "handshake_failure".equals(e.path("conn_state").asText("")))
+                .count();
+        double handshakeFailureRate = sslEntries.isEmpty() ? 0.0 : (double) handshakeFailureCount / sslEntries.size();
+
+        // SSL/TLS version entropy
+        Frequency versionFreq = new Frequency();
+        sslEntries.forEach(e -> versionFreq.addValue(e.path("version").asText("")));
+        double versionEntropy = EntropyUtils.calculateEntropy(versionFreq);
+
+        // Submit features
         Map<String, Double> features = Map.of(
                 FeatureConfig.OUTDATED_SSL_VERSIONS, (double) outdatedSslCount,
                 FeatureConfig.WEAK_CIPHERS, (double) weakCipherCount,
                 FeatureConfig.CIPHER_SUITE_ENTROPY, cipherEntropy,
-                FeatureConfig.JA3_SIMILARITY_SCORE, ja3Similarity
+                FeatureConfig.JA3_ENTROPY, ja3Entropy,  // Replaced JA3 similarity
+                FeatureConfig.SELF_SIGNED_CERT_COUNT, (double) selfSignedCertCount,
+                FeatureConfig.HANDSHAKE_FAILURE_RATE, handshakeFailureRate,
+                FeatureConfig.SSL_VERSION_ENTROPY, versionEntropy
         );
         submitFeatures(ip, windowStart, features);
     }
 
     private String generateJa3Hash(JsonNode entry) {
-        // Placeholder: Implement JA3 hashing logic
-        return "dummy-ja3-hash";
+        // TODO: Implement actual JA3 hashing using version, cipher, extensions, etc.
+        return "dummy-ja3-hash"; // Replace with real implementation
     }
 }

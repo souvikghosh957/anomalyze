@@ -1,12 +1,12 @@
 package com.threat.anomalyze.commons.features;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.threat.anomalyze.commons.util.EntropyUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.math3.stat.Frequency;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.springframework.stereotype.Service;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,6 +16,7 @@ import java.util.Set;
 public class HttpFeatureExtractor extends BaseFeatureExtractor implements IFeatureExtractor {
 
     private static final Set<String> COMMON_METHODS = Set.of("GET", "POST", "HEAD");
+    private static final Set<String> SUSPICIOUS_URI_PATTERNS = Set.of("..", "%00", "'", "--", ";", "&", "|", "%25", "%2e");
 
     public HttpFeatureExtractor(FeatureAggregator aggregator) {
         super(aggregator, FeatureConfig.WINDOW_SIZE_MS);
@@ -35,35 +36,55 @@ public class HttpFeatureExtractor extends BaseFeatureExtractor implements IFeatu
                 .filter(method -> !COMMON_METHODS.contains(method))
                 .count();
 
-        // URI anomalies
+        // URI anomalies (expanded)
         long uriAnomalyCount = httpEntries.stream()
                 .map(e -> e.path("uri").asText(""))
-                .filter(uri -> uri.contains("..") || uri.contains("%00"))
+                .filter(uri -> SUSPICIOUS_URI_PATTERNS.stream().anyMatch(uri::contains))
                 .count();
 
-        // Status code ratio (4xx, 5xx errors)
-        long errorCodeCount = httpEntries.stream()
+        // Status code ratios (split into 4xx and 5xx)
+        long clientErrorCount = httpEntries.stream()
                 .map(e -> e.path("status_code").asInt(0))
-                .filter(code -> code >= 400 && code < 600)
+                .filter(code -> code >= 400 && code < 500)
                 .count();
-        double statusCodeRatio = httpEntries.isEmpty() ? 0.0 : (double) errorCodeCount / httpEntries.size();
+        long serverErrorCount = httpEntries.stream()
+                .map(e -> e.path("status_code").asInt(0))
+                .filter(code -> code >= 500 && code < 600)
+                .count();
+        double clientErrorRatio = httpEntries.isEmpty() ? 0.0 : (double) clientErrorCount / httpEntries.size();
+        double serverErrorRatio = httpEntries.isEmpty() ? 0.0 : (double) serverErrorCount / httpEntries.size();
 
-        // Method frequency skew
+        // Method entropy (replacing skew)
         Frequency methodFreq = new Frequency();
         httpEntries.forEach(e -> methodFreq.addValue(e.path("method").asText("")));
-        double[] methodCounts = new double[(int) methodFreq.getUniqueCount()];
-        Iterator<Comparable<?>> iterator = methodFreq.valuesIterator();
-        for (int i = 0; iterator.hasNext(); i++) {
-            methodCounts[i] = methodFreq.getCount(iterator.next());
-        }
-        DescriptiveStatistics stats = new DescriptiveStatistics(methodCounts);
-        double methodSkew = stats.getSkewness();
+        double methodEntropy = EntropyUtils.calculateEntropy(methodFreq);
 
+        // User-agent entropy
+        Frequency uaFreq = new Frequency();
+        httpEntries.forEach(e -> uaFreq.addValue(e.path("user_agent").asText("")));
+        double uaEntropy = EntropyUtils.calculateEntropy(uaFreq);
+
+        // Request body length variance
+        DescriptiveStatistics bodyLenStats = new DescriptiveStatistics();
+        httpEntries.forEach(e -> bodyLenStats.addValue(e.path("request_body_len").asDouble(0.0)));
+        double bodyLenVariance = bodyLenStats.getVariance();
+
+        // Header anomalies (e.g., X-Forwarded-For)
+        long headerAnomalyCount = httpEntries.stream()
+                .filter(e -> e.has("request_headers") &&
+                        e.get("request_headers").toString().contains("X-Forwarded-For"))
+                .count();
+
+        // Submit features
         Map<String, Double> features = Map.of(
                 FeatureConfig.RARE_HTTP_METHODS, (double) rareMethodCount,
                 FeatureConfig.URI_ANOMALIES, (double) uriAnomalyCount,
-                FeatureConfig.STATUS_CODE_RATIO, statusCodeRatio,
-                FeatureConfig.METHOD_FREQUENCY_SKEW, methodSkew
+                FeatureConfig.CLIENT_ERROR_RATIO, clientErrorRatio,
+                FeatureConfig.SERVER_ERROR_RATIO, serverErrorRatio,
+                FeatureConfig.METHOD_ENTROPY, methodEntropy,
+                FeatureConfig.USER_AGENT_ENTROPY, uaEntropy,
+                FeatureConfig.BODY_LENGTH_ENTROPY, bodyLenVariance,
+                FeatureConfig.HEADER_ANOMALY_COUNT, (double) headerAnomalyCount
         );
         submitFeatures(ip, windowStart, features);
     }

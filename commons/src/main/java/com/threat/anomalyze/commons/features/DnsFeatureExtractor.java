@@ -9,11 +9,11 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 
 @Service
 @Slf4j
@@ -31,23 +31,60 @@ public class DnsFeatureExtractor extends BaseFeatureExtractor implements IFeatur
             return;
         }
 
-        // Existing Feature: DNS query frequency
+        // Feature: DNS query frequency
         int queryFreq = dnsEntries.size();
 
-        // Existing Feature: Unique queried domains
+        // Feature: Unique queried domains
         Set<String> uniqueDomains = dnsEntries.stream()
                 .map(e -> e.path("query").asText(""))
+                .filter(query -> !query.isEmpty())
                 .collect(Collectors.toSet());
 
-        // Existing Feature: Query type entropy
+        // Feature: Query type entropy
         Frequency qtypeFreq = new Frequency();
-        dnsEntries.forEach(e -> qtypeFreq.addValue(e.path("qtype_name").asText("")));
+        dnsEntries.forEach(e -> {
+            String qtype = e.path("qtype_name").asText("");
+            if (!qtype.isEmpty()) {
+                qtypeFreq.addValue(qtype);
+            } else {
+                log.warn("Missing 'qtype_name' for IP: {} in window: {}", ip, windowStart);
+            }
+        });
         double qtypeEntropy = EntropyUtils.calculateEntropy(qtypeFreq);
 
-        // New Feature: Average query-response time
+        // New Feature: NXDOMAIN ratio
+        long nxdomainCount = dnsEntries.stream()
+                .filter(e -> "NXDOMAIN".equals(e.path("rcode_name").asText("")))
+                .count();
+        double nxdomainRatio = queryFreq > 0 ? (double) nxdomainCount / queryFreq : 0.0;
+
+        // New Feature: Query length entropy
+        Frequency queryLengthFreq = new Frequency();
+        dnsEntries.forEach(e -> {
+            String query = e.path("query").asText("");
+            if (!query.isEmpty()) {
+                queryLengthFreq.addValue(query.length());
+            }
+        });
+        double queryLengthEntropy = EntropyUtils.calculateEntropy(queryLengthFreq);
+
+        // New Feature: Subdomain level average
+        double totalSubdomainLevels = 0;
+        int validDomainCount = 0;
+        for (JsonNode entry : dnsEntries) {
+            String query = entry.path("query").asText("");
+            if (!query.isEmpty()) {
+                int levels = query.split("\\.").length - 1; // e.g., sub.example.com -> 2
+                totalSubdomainLevels += levels;
+                validDomainCount++;
+            }
+        }
+        double subdomainLevelAvg = validDomainCount > 0 ? totalSubdomainLevels / validDomainCount : 0.0;
+
+        // Feature: Average query-response time (optimized)
         double queryResponseTimeAvg = calculateQueryResponseTimeAvg(dnsEntries);
 
-        // New Feature: Domain age anomaly count
+        // Feature: Domain age anomaly count
         int domainAgeAnomaly = calculateDomainAgeAnomaly(dnsEntries);
 
         // Submit all features
@@ -56,53 +93,50 @@ public class DnsFeatureExtractor extends BaseFeatureExtractor implements IFeatur
                 FeatureConfig.DNS_UNIQUE_DOMAIN, (double) uniqueDomains.size(),
                 FeatureConfig.DOMAIN_ENTROPY, qtypeEntropy,
                 FeatureConfig.QUERY_RESPONSE_TIME_AVG, queryResponseTimeAvg,
-                FeatureConfig.DOMAIN_AGE_ANOMALY, (double) domainAgeAnomaly
+                FeatureConfig.DOMAIN_AGE_ANOMALY, (double) domainAgeAnomaly,
+                FeatureConfig.NXDOMAIN_RATIO, nxdomainRatio,
+                FeatureConfig.QUERY_LENGTH_ENTROPY, queryLengthEntropy,
+                FeatureConfig.SUBDOMAIN_LEVEL_AVG, subdomainLevelAvg
         );
 
         submitFeatures(ip, windowStart, features);
     }
 
     /**
-     * Calculates the average time between DNS queries and their responses.
+     * Optimized calculation of average query-response time using a map.
      */
     private double calculateQueryResponseTimeAvg(List<JsonNode> dnsEntries) {
-        // Group by uid and trans_id
-        Map<String, Map<String, List<JsonNode>>> groupedByUidAndTransId = dnsEntries.stream()
-                .collect(Collectors.groupingBy(
-                        e -> e.get("uid").asText(),
-                        Collectors.groupingBy(e -> e.get("trans_id").asText())
-                ));
-
+        Map<String, Double> queryTimestamps = new HashMap<>();
         List<Double> timeDifferences = new ArrayList<>();
 
-        for (Map<String, List<JsonNode>> uidGroup : groupedByUidAndTransId.values()) {
-            for (List<JsonNode> transGroup : uidGroup.values()) {
-                if (transGroup.size() >= 2) { // Expect at least query and response
-                    JsonNode query = transGroup.stream()
-                            .filter(e -> !e.has("answers") || e.get("answers").isEmpty())
-                            .findFirst()
-                            .orElse(null);
-                    JsonNode response = transGroup.stream()
-                            .filter(e -> e.has("answers") && !e.get("answers").isEmpty())
-                            .findFirst()
-                            .orElse(null);
-                    if (query != null && response != null) {
-                        double queryTs = query.get("ts").asDouble();
-                        double responseTs = response.get("ts").asDouble();
-                        double diff = responseTs - queryTs;
-                        if (diff > 0) { // Ensure response is after query
-                            timeDifferences.add(diff);
-                        }
+        for (JsonNode entry : dnsEntries) {
+            String uid = entry.path("uid").asText("");
+            String transId = entry.path("trans_id").asText("");
+            if (uid.isEmpty() || transId.isEmpty()) {
+                log.warn("Missing 'uid' or 'trans_id' in DNS entry for timestamp: {}", entry.path("ts").asText(""));
+                continue;
+            }
+            String key = uid + "_" + transId;
+            double ts = entry.path("ts").asDouble(0.0);
+
+            if (entry.has("answers") && !entry.get("answers").isEmpty()) {
+                // This is a response
+                if (queryTimestamps.containsKey(key)) {
+                    double queryTs = queryTimestamps.get(key);
+                    double diff = ts - queryTs;
+                    if (diff > 0) {
+                        timeDifferences.add(diff);
                     }
+                    queryTimestamps.remove(key); // Remove after matching
                 }
+            } else {
+                // This is a query
+                queryTimestamps.put(key, ts);
             }
         }
 
         return timeDifferences.isEmpty() ? 0.0 :
-                timeDifferences.stream()
-                        .mapToDouble(Double::doubleValue)
-                        .average()
-                        .orElse(0.0);
+                timeDifferences.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
     }
 
     /**
@@ -111,11 +145,13 @@ public class DnsFeatureExtractor extends BaseFeatureExtractor implements IFeatur
     private int calculateDomainAgeAnomaly(List<JsonNode> dnsEntries) {
         int anomalies = 0;
         for (JsonNode entry : dnsEntries) {
-            String domain = entry.path("query").asText();
-            LocalDateTime creationDate = getWhoisCreationDate(domain);
-            long ageDays = ChronoUnit.DAYS.between(creationDate, LocalDateTime.now());
-            if (ageDays < 30) {
-                anomalies++;
+            String domain = entry.path("query").asText("");
+            if (!domain.isEmpty()) {
+                LocalDateTime creationDate = getWhoisCreationDate(domain);
+                long ageDays = ChronoUnit.DAYS.between(creationDate, LocalDateTime.now());
+                if (ageDays < 30) {
+                    anomalies++;
+                }
             }
         }
         return anomalies;
@@ -123,10 +159,10 @@ public class DnsFeatureExtractor extends BaseFeatureExtractor implements IFeatur
 
     /**
      * Placeholder for WHOIS lookup to get a domain's creation date.
-     * In practice, integrate with a WHOIS service or cached database.
+     * TODO: Replace with actual WHOIS service or cached database.
      */
     private LocalDateTime getWhoisCreationDate(String domain) {
-        // TODO: Replace with actual WHOIS lookup implementation
-        return LocalDateTime.now().minusYears(1); // Dummy value (1 year old)
+        // Dummy implementation (assumes domain is 1 year old)
+        return LocalDateTime.now().minusYears(1);
     }
 }
