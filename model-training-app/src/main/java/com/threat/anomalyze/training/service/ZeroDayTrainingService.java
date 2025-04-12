@@ -56,10 +56,13 @@ public class ZeroDayTrainingService implements ModelTrainingService {
     @Autowired
     private FeatureExtractionService featureExtractionService;
 
+    // Define a constant for the CSV file path
+    private static final String CSV_PATH = "features.csv";
+
     @Override
     public void startTraining() {
         try {
-            preprocessData();
+            prepareTrainingData();
             trainAnomalyDetectionModel();
             evaluateModel();
         } catch (TrainingException e) {
@@ -68,31 +71,31 @@ public class ZeroDayTrainingService implements ModelTrainingService {
         }
     }
 
-    private void preprocessData() throws TrainingException {
+    private void prepareTrainingData() throws TrainingException {
         try {
+            // Extract features from the logs
             Map<String, Map<Long, Map<String, Double>>> trainingFeatures =
                     featureExtractionService.retrieveFeatures(zeekLogPath);
             log.info("Preprocessed training data with {} feature sets.", trainingFeatures.size());
+
+            // Export features to CSV
+            Path path = Paths.get(CSV_PATH);
+            csvExportService.exportToCsv(path, trainingFeatures);
+            log.info("Features exported to {}", CSV_PATH);
         } catch (IOException e) {
-            log.error("Failed to parse log file: {}", e.getMessage(), e);
-            throw new TrainingException("Error parsing log file during preprocessing", e);
+            log.error("Failed to parse log file or export CSV: {}", e.getMessage(), e);
+            throw new TrainingException("Error during data preprocessing", e);
         } catch (Exception e) {
             log.error("Unexpected error during preprocessing: {}", e.getMessage(), e);
             throw new TrainingException("Unexpected error during data preprocessing", e);
         }
     }
 
-
     @Override
     public void trainAnomalyDetectionModel() {
-        String csvPath = "features.csv"; // Configure as needed
         try {
-            // Export features to CSV
-            Path path = Paths.get(csvPath);
-            csvExportService.exportToCsv(path, featureAggregator.getFeatureStore());
-            log.info("Features exported to {}", csvPath);
-
-            // Read and process CSV file
+            log.info("Reading training data from {}", CSV_PATH);
+            Path path = Paths.get(CSV_PATH);
             CSVFormat format = CSVFormat.Builder.create()
                     .setHeader()
                     .setSkipHeaderRecord(true)
@@ -113,16 +116,14 @@ public class ZeroDayTrainingService implements ModelTrainingService {
 
             // Save the scatter plot
             ScatterPlotUtils.saveScatterPlot(modifiedDf, "zeroday_scatter_plot.png");
-
         } catch (IOException e) {
-            log.error("Failed to export features to CSV", e);
-            throw new TrainingException("Failed to export features", e);
+            log.error("Failed to read CSV or save model: {}", e.getMessage(), e);
+            throw new TrainingException("Error during model training", e);
         } catch (Exception e) {
-            log.error("An error occurred during model training", e);
+            log.error("Unexpected error during model training: {}", e.getMessage(), e);
             throw new TrainingException("Model training failed", e);
         }
     }
-
 
     @Override
     public void evaluateModel() {

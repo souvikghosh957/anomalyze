@@ -48,6 +48,7 @@ public class FeatureConfig {
             METHOD_FREQUENCY_SKEW,
             RESPONSE_CODE_ENTROPY,
             DNS_QUERY_FREQUENCY,
+            DNS_UNIQUE_DOMAIN,
             DOMAIN_ENTROPY,
             QUERY_RESPONSE_TIME_AVG,
             DOMAIN_AGE_ANOMALY,
