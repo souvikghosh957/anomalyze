@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.threat.anomalyze.commons.util.EntropyUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.math3.stat.Frequency;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -27,15 +28,15 @@ public class ConnFeatureExtractor extends BaseFeatureExtractor implements IFeatu
             return;
         }
 
-        // Feature: Connection frequency
+        // Connection frequency
         int connFreq = connEntries.size();
 
-        // Feature: Unique destination ports
+        // Unique destination ports
         Set<String> uniquePorts = connEntries.stream()
                 .map(e -> e.get("id.resp_p").asText())
                 .collect(Collectors.toSet());
 
-        // Feature: Average connection duration
+        // Average connection duration
         double totalDuration = 0.0;
         int durationCount = 0;
         for (JsonNode entry : connEntries) {
@@ -43,23 +44,21 @@ public class ConnFeatureExtractor extends BaseFeatureExtractor implements IFeatu
             if (!durationNode.isMissingNode()) {
                 totalDuration += durationNode.asDouble();
                 durationCount++;
-            } else {
-                log.warn("Missing 'duration' field for IP: {} in window: {}", ip, windowStart);
             }
         }
         double connDurationAvg = durationCount > 0 ? totalDuration / durationCount : 0.0;
 
-        // Feature: Port entropy
+        // Port entropy
         Frequency portFreq = new Frequency();
         connEntries.forEach(e -> portFreq.addValue(e.get("id.resp_p").asText()));
         double portEntropy = EntropyUtils.calculateEntropy(portFreq);
 
-        // Feature: Connection state entropy
+        // Connection state entropy
         Frequency stateFreq = new Frequency();
         connEntries.forEach(e -> stateFreq.addValue(e.get("conn_state").asText()));
         double connectionStateEntropy = EntropyUtils.calculateEntropy(stateFreq);
 
-        // Feature: Bytes in/out ratio
+        // Bytes in/out ratio (capped)
         double totalBytesInOutRatio = 0.0;
         int bytesRatioCount = 0;
         for (JsonNode entry : connEntries) {
@@ -68,57 +67,73 @@ public class ConnFeatureExtractor extends BaseFeatureExtractor implements IFeatu
             if (!origBytesNode.isMissingNode() && !respBytesNode.isMissingNode()) {
                 double origBytes = origBytesNode.asDouble();
                 double respBytes = respBytesNode.asDouble();
-                totalBytesInOutRatio += origBytes / (respBytes + 1); // +1 to avoid division by zero
+                double ratio = origBytes / (respBytes + 1);
+                totalBytesInOutRatio += Math.min(ratio, 100.0); // Cap at 100
                 bytesRatioCount++;
-            } else {
-                log.warn("Missing 'orig_bytes' or 'resp_bytes' for IP: {} in window: {}", ip, windowStart);
             }
         }
         double bytesInOutRatio = bytesRatioCount > 0 ? totalBytesInOutRatio / bytesRatioCount : 0.0;
 
-        // Feature: Destination IP entropy
+        // Destination IP entropy
         Frequency destIpFreq = new Frequency();
         connEntries.forEach(e -> destIpFreq.addValue(e.get("id.resp_h").asText()));
         double destinationIpEntropy = EntropyUtils.calculateEntropy(destIpFreq);
 
-        // Feature: UDP/TCP ratio
+        // Source IP entropy
+        Frequency srcIpFreq = new Frequency();
+        connEntries.forEach(e -> srcIpFreq.addValue(e.get("id.orig_h").asText()));
+        double sourceIpEntropy = EntropyUtils.calculateEntropy(srcIpFreq);
+
+        // Protocol ratios
         Map<String, Long> protoCounts = connEntries.stream()
-                .collect(Collectors.groupingBy(
-                        e -> e.get("proto").asText(),
-                        Collectors.counting()
-                ));
+                .collect(Collectors.groupingBy(e -> e.get("proto").asText(), Collectors.counting()));
         long udpCount = protoCounts.getOrDefault("udp", 0L);
         long tcpCount = protoCounts.getOrDefault("tcp", 0L);
-        double udpTcpRatio = (double) udpCount / (tcpCount + 1); // +1 to avoid division by zero
+        long icmpCount = protoCounts.getOrDefault("icmp", 0L);
+        double totalProtos = (double) (tcpCount + udpCount + icmpCount + 1); // Avoid division by zero
+        double udpRatio = udpCount / totalProtos;
+        double tcpRatio = tcpCount / totalProtos;
+        double icmpRatio = icmpCount / totalProtos;
 
-        // New Feature: Connection Rate (connections per second)
+        // Connection rate
         double windowDurationSeconds = (double) FeatureConfig.WINDOW_SIZE_MS / 1000.0;
         double connectionRate = connFreq / windowDurationSeconds;
 
-        // New Feature: SYN Flood Indicator (SYN to ACK ratio)
-        long synCount = connEntries.stream()
-                .filter(e -> "S0".equals(e.get("conn_state").asText()))
+        // Incomplete connection ratio
+        long incompleteCount = connEntries.stream()
+                .filter(e -> Set.of("S0", "S1", "REJ").contains(e.get("conn_state").asText()))
                 .count();
-        long ackCount = connEntries.stream()
-                .filter(e -> "S1".equals(e.get("conn_state").asText()) ||
-                        "SF".equals(e.get("conn_state").asText()) ||
-                        "REJ".equals(e.get("conn_state").asText()))
+        long completeCount = connEntries.stream()
+                .filter(e -> "SF".equals(e.get("conn_state").asText()))
                 .count();
-        double synFloodRatio = (double) synCount / (ackCount + 1); // +1 to avoid division by zero
+        double incompleteRatio = (double) incompleteCount / (completeCount + 1);
 
-        // Submit all features
-        Map<String, Double> features = Map.of(
-                FeatureConfig.CONNECTION_FREQUENCY, (double) connFreq,
-                FeatureConfig.UNIQUE_PORTS, (double) uniquePorts.size(),
-                FeatureConfig.CONNECTION_DURATION_AVG, connDurationAvg,
-                FeatureConfig.PORT_ENTROPY, portEntropy,
-                FeatureConfig.CONNECTION_STATE_ENTROPY, connectionStateEntropy,
-                FeatureConfig.BYTES_IN_OUT_RATIO, bytesInOutRatio,
-                FeatureConfig.DESTINATION_IP_ENTROPY, destinationIpEntropy,
-                FeatureConfig.UDP_TCP_RATIO, udpTcpRatio,
-                FeatureConfig.CONNECTION_RATE, connectionRate,
-                FeatureConfig.SYN_FLOOD_RATIO, synFloodRatio
+        // Timestamp variance
+        DescriptiveStatistics tsStats = new DescriptiveStatistics();
+        connEntries.forEach(e -> {
+            double ts = e.path("ts").asDouble(-1.0);
+            if (ts >= 0) tsStats.addValue(ts);
+        });
+        double tsVariance = tsStats.getN() > 0 ? tsStats.getVariance() : 0.0;
+
+        // Submit features
+        Map<String, Double> features = Map.ofEntries(
+                Map.entry(FeatureConfig.CONNECTION_FREQUENCY, (double) connFreq),
+                Map.entry(FeatureConfig.UNIQUE_PORTS, (double) uniquePorts.size()),
+                Map.entry(FeatureConfig.CONNECTION_DURATION_AVG, connDurationAvg),
+                Map.entry(FeatureConfig.PORT_ENTROPY, portEntropy),
+                Map.entry(FeatureConfig.CONNECTION_STATE_ENTROPY, connectionStateEntropy),
+                Map.entry(FeatureConfig.BYTES_IN_OUT_RATIO, bytesInOutRatio),
+                Map.entry(FeatureConfig.DESTINATION_IP_ENTROPY, destinationIpEntropy),
+                Map.entry(FeatureConfig.SOURCE_IP_ENTROPY, sourceIpEntropy),
+                Map.entry(FeatureConfig.UDP_RATIO, udpRatio),
+                Map.entry(FeatureConfig.TCP_RATIO, tcpRatio),
+                Map.entry(FeatureConfig.ICMP_RATIO, icmpRatio),
+                Map.entry(FeatureConfig.CONNECTION_RATE, connectionRate),
+                Map.entry(FeatureConfig.INCOMPLETE_CONNECTION_RATIO, incompleteRatio),
+                Map.entry(FeatureConfig.CONNECTION_TIMESTAMP_VARIANCE, tsVariance)
         );
+
         submitFeatures(ip, windowStart, features);
     }
 }

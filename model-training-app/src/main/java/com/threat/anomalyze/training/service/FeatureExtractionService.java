@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class FeatureExtractionService {
 
-    private static final List<String> LOG_TYPES = List.of("conn", "http", "dns", "ssl", "notice");
+    private static final List<String> LOG_TYPES = List.of("conn", "http", "dns", "ssl", "files", "notice", "auth");
 
     @Autowired
     private LogParser logParser;

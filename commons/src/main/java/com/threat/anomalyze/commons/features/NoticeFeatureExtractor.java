@@ -64,7 +64,7 @@ public class NoticeFeatureExtractor extends BaseFeatureExtractor implements IFea
                 FeatureConfig.NOTICE_TYPE_ENTROPY, typeEntropy,
                 FeatureConfig.AVERAGE_SEVERITY, averageSeverity,
                 FeatureConfig.NOTICE_RATE, noticeRate,
-                FeatureConfig.TIMESTAMP_VARIANCE, timestampVariance
+                FeatureConfig.NOTICE_TIMESTAMP_VARIANCE, timestampVariance
         );
         submitFeatures(ip, windowStart, features);
     }

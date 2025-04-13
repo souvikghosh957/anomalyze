@@ -80,7 +80,7 @@ public class SslFeatureExtractor extends BaseFeatureExtractor implements IFeatur
                 FeatureConfig.OUTDATED_SSL_VERSIONS, (double) outdatedSslCount,
                 FeatureConfig.WEAK_CIPHERS, (double) weakCipherCount,
                 FeatureConfig.CIPHER_SUITE_ENTROPY, cipherEntropy,
-                FeatureConfig.JA3_ENTROPY, ja3Entropy,  // Replaced JA3 similarity
+                FeatureConfig.JA3_ENTROPY, ja3Entropy,
                 FeatureConfig.SELF_SIGNED_CERT_COUNT, (double) selfSignedCertCount,
                 FeatureConfig.HANDSHAKE_FAILURE_RATE, handshakeFailureRate,
                 FeatureConfig.SSL_VERSION_ENTROPY, versionEntropy

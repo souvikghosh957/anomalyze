@@ -7,7 +7,7 @@ if (!(Test-Path -Path $processed_dir)) {
 }
 
 # List of log files to sort (customize this as needed)
-$log_files_to_sort = @("conn.log", "dns.log", "ssl.log", "http.log", "notice.log")
+$log_files_to_sort = @("conn.log", "dns.log", "ssl.log", "http.log", "files.log", "auth.log", "notice.log")
 
 Write-Host "Zeek log processor started. Checking for new .pcap files every 1 minute..."
 

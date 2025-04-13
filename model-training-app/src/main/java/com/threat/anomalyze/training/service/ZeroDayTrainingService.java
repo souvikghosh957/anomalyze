@@ -56,8 +56,13 @@ public class ZeroDayTrainingService implements ModelTrainingService {
     @Autowired
     private FeatureExtractionService featureExtractionService;
 
+    // Define model name in a constant
+    private static final String ZERO_DAY_DETECTION_MODEL = "zeroday-detection-model.ser";
+
     // Define a constant for the CSV file path
-    private static final String CSV_PATH = "features.csv";
+    private static final String TRAINING_FEATURE_CSV_PATH = "training_features.csv";
+    private static final String EVALUATION_FEATURE_CSV_PATH = "evaluation_features.csv";
+    private static final String EVALUATION_SCORES = "evaluation_scores.csv";
 
     @Override
     public void startTraining() {
@@ -79,9 +84,9 @@ public class ZeroDayTrainingService implements ModelTrainingService {
             log.info("Preprocessed training data with {} feature sets.", trainingFeatures.size());
 
             // Export features to CSV
-            Path path = Paths.get(CSV_PATH);
+            Path path = Paths.get(TRAINING_FEATURE_CSV_PATH);
             csvExportService.exportToCsv(path, trainingFeatures);
-            log.info("Features exported to {}", CSV_PATH);
+            log.info("Features exported to {}", TRAINING_FEATURE_CSV_PATH);
         } catch (IOException e) {
             log.error("Failed to parse log file or export CSV: {}", e.getMessage(), e);
             throw new TrainingException("Error during data preprocessing", e);
@@ -94,8 +99,8 @@ public class ZeroDayTrainingService implements ModelTrainingService {
     @Override
     public void trainAnomalyDetectionModel() {
         try {
-            log.info("Reading training data from {}", CSV_PATH);
-            Path path = Paths.get(CSV_PATH);
+            log.info("Reading training data from {}", TRAINING_FEATURE_CSV_PATH);
+            Path path = Paths.get(TRAINING_FEATURE_CSV_PATH);
             CSVFormat format = CSVFormat.Builder.create()
                     .setHeader()
                     .setSkipHeaderRecord(true)
@@ -108,14 +113,14 @@ public class ZeroDayTrainingService implements ModelTrainingService {
             IsolationForest.Options options = new IsolationForest.Options(
                     numberOfTrees, maxTreeDepth, subSamplingRate, extensionLevel);
             IsolationForest model = IsolationForest.fit(modifiedDf.toArray(), options);
-            log.info("Isolation Forest model trained successfully");
+            log.info("Isolation Forest model for ZeroDay detection trained successfully");
 
             // Save the trained model
-            Write.object(model, Paths.get("isolation_forest_model.ser"));
-            log.info("Model saved to isolation_forest_model.ser");
+            Write.object(model, Paths.get(ZERO_DAY_DETECTION_MODEL));
+            log.info("Model saved to {}", ZERO_DAY_DETECTION_MODEL);
 
             // Save the scatter plot
-            ScatterPlotUtils.saveScatterPlot(modifiedDf, "zeroday_scatter_plot.png");
+            ScatterPlotUtils.saveScatterPlot(modifiedDf, "zeroday_scatter_plot_training.png");
         } catch (IOException e) {
             log.error("Failed to read CSV or save model: {}", e.getMessage(), e);
             throw new TrainingException("Error during model training", e);
@@ -137,12 +142,11 @@ public class ZeroDayTrainingService implements ModelTrainingService {
             log.info("Extracted {} feature sets from test logs.", testFeatures.size());
 
             // Step 2: Load the trained Isolation Forest model
-            IsolationForest model = (IsolationForest) Read.object(Paths.get("isolation_forest_model.ser"));
-            log.info("Loaded trained Isolation Forest model from isolation_forest_model.ser");
+            IsolationForest model = (IsolationForest) Read.object(Paths.get(ZERO_DAY_DETECTION_MODEL));
+            log.info("Loaded trained Isolation Forest model from {}", ZERO_DAY_DETECTION_MODEL);
 
             // Step 3: Export test features to CSV and create a DataFrame
-            String testCsvPath = "test_features.csv";
-            Path path = Paths.get(testCsvPath);
+            Path path = Paths.get(EVALUATION_FEATURE_CSV_PATH);
             csvExportService.exportToCsv(path, testFeatures);
             CSVFormat format = CSVFormat.Builder.create()
                     .setHeader()
@@ -173,11 +177,11 @@ public class ZeroDayTrainingService implements ModelTrainingService {
             }
 
             // Step 7: Export results to CSV
-            String scoresCsvPath = "test_scores_input.csv";
+
             List<String> headers = List.of("ip", "timestamp", "anomaly_score");
-            csvExportService.exportToCsv(Paths.get(scoresCsvPath), scoresList, headers);
-            log.info("Test scores saved to {}", scoresCsvPath);
-            ScatterPlotUtils.saveScatterPlot(featuresDf, "zeroday_scatter_plot_input.png");
+            csvExportService.exportToCsv(Paths.get(EVALUATION_SCORES), scoresList, headers);
+            log.info("Evaluation scores saved to {}", EVALUATION_SCORES);
+            ScatterPlotUtils.saveScatterPlot(featuresDf, "zeroday_scatter_plot_evaluation.png");
         } catch (IOException e) {
             log.error("Failed to process test logs or export data: {}", e.getMessage(), e);
             throw new TrainingException("Error during model evaluation", e);
