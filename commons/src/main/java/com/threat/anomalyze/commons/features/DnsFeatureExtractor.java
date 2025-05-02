@@ -1,6 +1,7 @@
 package com.threat.anomalyze.commons.features;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.threat.anomalyze.commons.services.WhoisService;
 import com.threat.anomalyze.commons.util.EntropyUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.math3.stat.Frequency;
@@ -147,7 +148,7 @@ public class DnsFeatureExtractor extends BaseFeatureExtractor implements IFeatur
         for (JsonNode entry : dnsEntries) {
             String domain = entry.path("query").asText("");
             if (!domain.isEmpty()) {
-                LocalDateTime creationDate = getWhoisCreationDate(domain);
+                LocalDateTime creationDate = WhoisService.getWhoisCreationDate(domain);
                 long ageDays = ChronoUnit.DAYS.between(creationDate, LocalDateTime.now());
                 if (ageDays < 30) {
                     anomalies++;
@@ -155,14 +156,5 @@ public class DnsFeatureExtractor extends BaseFeatureExtractor implements IFeatur
             }
         }
         return anomalies;
-    }
-
-    /**
-     * Placeholder for WHOIS lookup to get a domain's creation date.
-     * TODO: Replace with actual WHOIS service or cached database.
-     */
-    private LocalDateTime getWhoisCreationDate(String domain) {
-        // Dummy implementation (assumes domain is 1 year old)
-        return LocalDateTime.now().minusYears(1);
     }
 }

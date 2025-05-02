@@ -31,12 +31,13 @@
 
 	<dependencyManagement>
 		<dependencies>
-			<!-- Commons Module -->
+			<!-- Internal Modules -->
 			<dependency>
 				<groupId>com.threat.anomalyze</groupId>
 				<artifactId>commons</artifactId>
 				<version>0.0.1-SNAPSHOT</version>
 			</dependency>
+
 			<!-- Spring AI BOM -->
 			<dependency>
 				<groupId>org.springframework.ai</groupId>
@@ -49,13 +50,13 @@
 	</dependencyManagement>
 
 	<dependencies>
-		<!-- Spring Boot Dependencies -->
+		<!-- Spring Boot -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
-		<!-- AI & ML Dependencies -->
+		<!-- AI / ML -->
 		<dependency>
 			<groupId>com.github.haifengl</groupId>
 			<artifactId>smile-core</artifactId>
@@ -67,14 +68,7 @@
 			<version>4.3.0</version>
 		</dependency>
 
-		<!-- Lombok for reducing boilerplate code -->
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<scope>provided</scope>
-		</dependency>
-
-		<!-- Analytics Dependencies -->
+		<!-- Analytics -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-math3</artifactId>
@@ -85,8 +79,27 @@
 			<artifactId>jfreechart</artifactId>
 			<version>1.5.5</version>
 		</dependency>
+		<dependency>
+			<groupId>commons-net</groupId>
+			<artifactId>commons-net</artifactId>
+			<version>3.11.1</version>
+		</dependency>
 
-		<!-- Testing Dependencies -->
+		<!-- Utility -->
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>33.4.8-jre</version>
+		</dependency>
+
+		<!-- Lombok -->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Testing -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>

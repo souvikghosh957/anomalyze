@@ -14,10 +14,9 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Service to extract features from Zeek log files for anomaly detection.
@@ -45,18 +44,13 @@ public class FeatureExtractionService {
      *
      * @param logPath Directory containing Zeek log files (e.g., conn.log, http.log).
      * @return A map of features: IP → Window Start → Feature Name → Value.
-     * @throws Exception If log parsing or feature extraction fails.
+     * @throws Exception If log parsing or feature extraction fails critically.
      */
     public Map<String, Map<Long, Map<String, Double>>> retrieveFeatures(String logPath) throws Exception {
         featureAggregator.clear();
 
-        // Process logs in parallel
         processLogFilesInParallel(logPath);
-
-        // Flush and collect
         List<ZeekLogWindowProcessorService.WindowData> processedWindows = flushAndCollectWindows(logPath);
-
-        // Extract features
         extractFeaturesFromWindows(processedWindows);
 
         return featureAggregator.getFeatureStore();
@@ -64,24 +58,18 @@ public class FeatureExtractionService {
 
     private void processLogFilesInParallel(String logPath) {
         ExecutorService executor = Executors.newFixedThreadPool(LOG_TYPES.size());
-        for (String logType : LOG_TYPES) {
-            executor.submit(() -> processLogType(logPath, logType));
-        }
-        executor.shutdown();
         try {
-            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-                log.warn("Log processing timed out after 60 seconds.");
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Thread.currentThread().interrupt();
-            log.error("Interrupted during log processing.", e);
+            List<CompletableFuture<Void>> futures = LOG_TYPES.stream()
+                    .map(logType -> CompletableFuture.runAsync(() -> processLogType(logPath, logType), executor))
+                    .toList();
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        } finally {
+            executor.shutdown();
         }
     }
 
     private void processLogType(String logPath, String logType) {
-        String logFilePath = Paths.get(logPath, logType+ "_sorted" + ".log").toString();
+        String logFilePath = Paths.get(logPath, logType + "_sorted.log").toString();
         if (Files.exists(Paths.get(logFilePath))) {
             try {
                 List<JsonNode> logs = logParser.parseLogFile(logFilePath);
@@ -97,10 +85,8 @@ public class FeatureExtractionService {
 
     private List<ZeekLogWindowProcessorService.WindowData> flushAndCollectWindows(String logPath) {
         zeekLogWindowProcessorService.flushAllWindows();
-        BlockingQueue<ZeekLogWindowProcessorService.WindowData> processingQueue =
-                zeekLogWindowProcessorService.getProcessingQueue();
         List<ZeekLogWindowProcessorService.WindowData> processedWindows = new ArrayList<>();
-        processingQueue.drainTo(processedWindows);
+        zeekLogWindowProcessorService.getProcessingQueue().drainTo(processedWindows);
 
         if (processedWindows.isEmpty()) {
             log.warn("No processed windows available from logs at {}.", logPath);
@@ -110,27 +96,26 @@ public class FeatureExtractionService {
 
     private void extractFeaturesFromWindows(List<ZeekLogWindowProcessorService.WindowData> processedWindows) {
         ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-        for (ZeekLogWindowProcessorService.WindowData windowData : processedWindows) {
-            executor.submit(() -> {
-                String ip = windowData.ip;
-                long windowStart = windowData.windowStart;
-                Map<String, List<JsonNode>> logEntriesByType = windowData.logEntriesByType;
-                for (IFeatureExtractor extractor : featureExtractors) {
-                    try {
-                        extractor.extractFeatures(ip, windowStart, logEntriesByType);
-                    } catch (Exception e) {
-                        log.error("Failed to extract features for IP: {} in window: {}", ip, windowStart, e);
-                    }
-                }
-            });
-        }
-        executor.shutdown();
         try {
-            executor.awaitTermination(60, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Thread.currentThread().interrupt();
-            log.error("Feature extraction interrupted", e);
+            List<CompletableFuture<Void>> futures = processedWindows.stream()
+                    .map(windowData -> CompletableFuture.runAsync(() -> {
+                        String ip = windowData.ip;
+                        long windowStart = windowData.windowStart;
+                        Map<String, List<JsonNode>> logEntriesByType = windowData.logEntriesByType;
+                        for (IFeatureExtractor extractor : featureExtractors) {
+                            try {
+                                extractor.extractFeatures(ip, windowStart, logEntriesByType);
+                            } catch (Exception e) {
+                                log.error("Failed to extract features for IP: {} in window: {}", ip, windowStart, e);
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }, executor))
+                    .toList();
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        } finally {
+            executor.shutdown();
         }
+        log.info("Completed feature extraction for {} windows.", processedWindows.size());
     }
 }

@@ -27,6 +27,9 @@ public class FeatureConfig {
     public static final String SELF_SIGNED_CERT_COUNT = "self_signed_cert_count";
     public static final String HANDSHAKE_FAILURE_RATE = "handshake_failure_rate";
     public static final String SSL_VERSION_ENTROPY = "ssl_version_entropy";
+    public static final String WEAK_CURVE_COUNT = "weak_curve_count";
+    public static final String RESUMPTION_RATE = "resumption_rate";
+    public static final String NEXT_PROTOCOL_ENTROPY = "next_protocol_entropy";
     public static final String NOTICE_COUNT = "notice_count";
     public static final String NOTICE_TYPE_ENTROPY = "notice_type_entropy";
     public static final String AVERAGE_SEVERITY = "average_severity";
@@ -108,6 +111,9 @@ public class FeatureConfig {
             SELF_SIGNED_CERT_COUNT,
             HANDSHAKE_FAILURE_RATE,
             SSL_VERSION_ENTROPY,
+            WEAK_CURVE_COUNT,
+            RESUMPTION_RATE,
+            NEXT_PROTOCOL_ENTROPY,
             NOTICE_COUNT,
             NOTICE_TYPE_ENTROPY,
             AVERAGE_SEVERITY,
