@@ -16,8 +16,10 @@ import java.util.Set;
 public class HttpFeatureExtractor extends BaseFeatureExtractor implements IFeatureExtractor {
 
     private static final Set<String> COMMON_METHODS = Set.of("GET", "POST", "HEAD");
+
     private static final Set<String> SUSPICIOUS_URI_PATTERNS = Set.of(
-            "..", "%00", "'", "--", ";", "&", "|", "%25", "%2e", "%252e", "%3b", "%27"
+            "..", "%00", "'", "--", ";", "&", "|", "%25", "%2e", "%252e", "%3b", "%27",
+            "SELECT", "UNION", "<script>", "%2527"
     );
 
     public HttpFeatureExtractor(FeatureAggregator aggregator) {
