@@ -67,11 +67,31 @@ public class FeatureConfig {
     public static final String HOST_ENTROPY = "host_entropy";
     public static final String HTTP_TIMESTAMP_VARIANCE = "http_timestamp_variance";
     public static final String URI_LENGTH_VARIANCE = "uri_length_variance";
-
+    public static final String SSH_OUTGOING_CONNECTIONS = "ssh_outgoing_connections";
+    public static final String SSH_UNIQUE_DEST_IPS = "ssh_unique_dest_ips";
+    public static final String SSH_AUTH_SUCCESS_RATIO = "ssh_auth_success_ratio";
+    public static final String SSH_SERVER_SOFTWARE_ENTROPY = "ssh_server_software_entropy";
+    public static final String SSH_WEAK_ALGO_COUNT = "ssh_weak_algo_count";
+    public static final String SSH_AVG_AUTH_ATTEMPTS = "ssh_avg_auth_attempts";
+    public static final String SSH_UNIQUE_DEST_PORTS = "ssh_unique_dest_ports";
+    public static final String SSH_NON_STANDARD_PORT_COUNT = "ssh_non_standard_port_count";
+    public static final String SSH_TIMESTAMP_VARIANCE = "ssh_timestamp_variance";
+    public static final String SSH_AVG_DURATION = "ssh_avg_duration";
+    public static final String SSH_TOTAL_BYTES = "ssh_total_bytes";
+    public static final String SSH_CIPHER_ALGO_ENTROPY = "ssh_cipher_algo_entropy";
+    public static final String SSH_HASSH_ENTROPY = "ssh_hassh_entropy";
+    public static final String SSH_INBOUND_CONNECTIONS = "ssh_inbound_connections";
+    public static final String SSH_UNIQUE_SRC_IPS = "ssh_unique_src_ips";
+    public static final String SSH_INBOUND_AUTH_SUCCESS_RATIO = "ssh_inbound_auth_success_ratio";
+    public static final String SSH_CLIENT_SOFTWARE_ENTROPY = "ssh_client_software_entropy";
+    public static final String SSH_INBOUND_WEAK_ALGO_COUNT = "ssh_inbound_weak_algo_count";
+    public static final String SSH_INBOUND_AVG_AUTH_ATTEMPTS = "ssh_inbound_avg_auth_attempts";
+    public static final String SSH_HASSH_SERVER_ENTROPY = "ssh_hassh_server_entropy";
+    public static final String SSH_NO_CLIENT_ID_COUNT = "ssh_no_client_id_count";
 
     public static final List<String> CSV_HEADERS = List.of(
             "timestamp", "ip",
-            CONNECTION_FREQUENCY,              // conn.log features
+            CONNECTION_FREQUENCY,
             UNIQUE_PORTS,
             CONNECTION_DURATION_AVG,
             PORT_ENTROPY,
@@ -132,10 +152,29 @@ public class FeatureConfig {
             FAILED_LOGIN_RATIO,
             USERNAME_ENTROPY,
             ATTEMPT_RATE,
-            FAILED_TS_VARIANCE
+            FAILED_TS_VARIANCE,
+            SSH_OUTGOING_CONNECTIONS,
+            SSH_UNIQUE_DEST_IPS,
+            SSH_AUTH_SUCCESS_RATIO,
+            SSH_SERVER_SOFTWARE_ENTROPY,
+            SSH_WEAK_ALGO_COUNT,
+            SSH_AVG_AUTH_ATTEMPTS,
+            SSH_UNIQUE_DEST_PORTS,
+            SSH_NON_STANDARD_PORT_COUNT,
+            SSH_TIMESTAMP_VARIANCE,
+            SSH_AVG_DURATION,
+            SSH_TOTAL_BYTES,
+            SSH_CIPHER_ALGO_ENTROPY,
+            SSH_HASSH_ENTROPY,
+            SSH_INBOUND_CONNECTIONS,
+            SSH_UNIQUE_SRC_IPS,
+            SSH_INBOUND_AUTH_SUCCESS_RATIO,
+            SSH_CLIENT_SOFTWARE_ENTROPY,
+            SSH_INBOUND_WEAK_ALGO_COUNT,
+            SSH_INBOUND_AVG_AUTH_ATTEMPTS,
+            SSH_HASSH_SERVER_ENTROPY,
+            SSH_NO_CLIENT_ID_COUNT
     );
-
 
     public static final long WINDOW_SIZE_MS = 60_000;
 }
-
